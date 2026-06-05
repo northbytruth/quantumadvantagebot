@@ -1,0 +1,55 @@
+name: 'The Quantum Advantage'
+description: 'Automated Post-Quantum Migration Analysis and Algorithmic Cost Optimization'
+author: 'YourName'
+branding:
+  icon: 'cpu'
+  color: 'blue'
+
+inputs:
+  target-file:
+    description: 'The path to the Q# or Python/Qiskit file to evaluate'
+    required: true
+  license-signature:
+    description: 'Your Enterprise PQC Validation Signature String'
+    required: false
+    default: 'community_tier'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python Environment
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install Quantum Core Dependencies
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        pip install qdk
+
+    - name: Execute Standalone Engine
+      shell: bash
+      id: runner
+      run: |
+        # Pull down your secure master public key to run the local PQC validation check
+        curl -s -o master_public.key https://raw.githubusercontent.com/YOUR_USER/quantum-advantage/main/public.key
+        
+        # Execute your compiled, closed-source Nuitka binary tool 
+        # Pass the targets and output directly to the workspace environment
+        chmod +x ${{ github.action_path }}/bin/qa-engine
+        ${{ github.action_path }}/bin/qa-engine "${{ inputs.target-file }}" "${{ inputs.license-signature }}" > report.md
+
+    - name: Post Evaluation Metrics directly to PR Commit
+      uses: actions/github-script@v6
+      if: github.event_name == 'pull_request'
+      with:
+        script: |
+          const fs = require('fs');
+          const report = fs.readFileSync('report.md', 'utf8');
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: report
+          });
